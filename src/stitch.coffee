@@ -142,39 +142,29 @@ exports.Package = class Package
       if stat.isDirectory()
         @getFilesInTree sourcePath, (err, paths) =>
           return callback err if err
+          paths = _.map paths, (p) => 
+            hasTrailingSlash = sourcePath.slice(-1) == "/"
+            sourcePathLength = if hasTrailingSlash then sourcePath.length else sourcePath.length + 1
+            { real: p, relative: p.slice(sourcePathLength) }
           async.reduce paths, sources, _.bind(@gatherCompilableSource, @), callback
       else
         @gatherCompilableSource sources, sourcePath, callback
 
-  gatherCompilableSource: (sources, path, callback) ->
+  gatherCompilableSource: (sources, paths, callback) ->
+    path = paths.real
+    relativePath = paths.relative
     if @compilers[extname(path).slice(1)]
-      @getRelativePath path, (err, relativePath) =>
-        return callback err if err
-
-        @compileFile path, (err, source) ->
-          if err then callback err
-          else
-            extension = extname relativePath
-            key       = relativePath.slice(0, -extension.length)
-            sources[key] =
-              filename: relativePath
-              source:   source
-            callback err, sources
+      @compileFile path, (err, source) ->
+        if err then callback err
+        else
+          extension = extname relativePath
+          key       = relativePath.slice(0, -extension.length)
+          sources[key] =
+            filename: relativePath
+            source:   source
+          callback err, sources
     else
       callback null, sources
-
-  getRelativePath: (path, callback) ->
-    fs.realpath path, (err, sourcePath) =>
-      return callback err if err
-
-      async.map @paths, fs.realpath, (err, expandedPaths) ->
-        return callback err if err
-
-        for expandedPath in expandedPaths
-          base = expandedPath + "/"
-          if sourcePath.indexOf(base) is 0
-            return callback null, sourcePath.slice base.length
-        callback new Error "#{path} isn't in the require path"
 
   compileFile: (path, callback) ->
     extension = extname(path).slice(1)
