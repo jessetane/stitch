@@ -1,6 +1,8 @@
 _     = require 'underscore'
 async = require 'async'
 fs    = require 'fs'
+jsp = require("uglify-js").parser
+pro = require("uglify-js").uglify
 
 {extname, join, normalize} = require 'path'
 
@@ -41,18 +43,32 @@ exports.Package = class Package
     @paths        = if config.paths? then _.map config.paths, (p) -> normalize p else ['lib']
     @dependencies = config.dependencies ? []
     @compilers    = _.extend {}, compilers, config.compilers
-
+    @compress     = config.compress ? false
     @cache        = config.cache ? true
     @mtimeCache   = {}
     @compileCache = {}
 
   compile: (callback) ->
+    @needsCompression = false
     async.parallel [
       @compileDependencies
       @compileSources
-    ], (err, parts) ->
+    ], (err, parts) =>
       if err then callback err
-      else callback null, parts.join("\n")
+      else 
+        if @compress
+          if @cache and @needsCompression is false
+            sources = @compressionCache
+          else
+            sources = parts.join("\n")
+            ast = jsp.parse sources
+            ast = pro.ast_mangle ast
+            ast = pro.ast_squeeze ast
+            sources = pro.gen_code ast
+            @compressionCache = sources if @cache
+        else
+          sources = parts.join("\n")
+        callback null, sources
 
   compileDependencies: (callback) =>
     async.map @dependencies, fs.readFile, (err, dependencySources) =>
@@ -178,6 +194,7 @@ exports.Package = class Package
     if @cache and @compileCache[path] and @mtimeCache[path] is @compileCache[path].mtime
       callback null, @compileCache[path].source
     else if compile = @compilers[extension]
+      @needsCompression = true
       source = null
       mod =
         _compile: (content, filename) ->
