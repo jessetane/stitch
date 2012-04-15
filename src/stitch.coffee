@@ -17,6 +17,13 @@ try
 catch err
 
 try
+  jade = require 'jade'
+  compilers.jade = (module, filename) ->
+    template = jade.compile fs.readFileSync(filename, 'utf8'), { client: true }
+    module._compile "module.exports = #{template}", filename
+catch err
+
+try
   eco = require 'eco'
   if eco.precompile
     compilers.eco = (module, filename) ->
@@ -28,11 +35,10 @@ try
       module._compile content, filename
 catch err
 
-
 exports.Package = class Package
   constructor: (config) ->
     @identifier   = config.identifier ? 'require'
-    @paths        = config.paths ? ['lib']
+    @paths        = if config.paths? then _.map config.paths, (p) -> normalize p else ['lib']
     @dependencies = config.dependencies ? []
     @compilers    = _.extend {}, compilers, config.compilers
 
