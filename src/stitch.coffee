@@ -21,7 +21,7 @@ catch err
 try
   jade = require 'jade'
   compilers.jade = (module, filename) ->
-    template = jade.compile fs.readFileSync(filename, 'utf8'), { client: true }
+    template = jade.compile fs.readFileSync(filename, 'utf8'), { client: true, compileDebug: false }
     module._compile "module.exports = #{template}", filename
 catch err
 
